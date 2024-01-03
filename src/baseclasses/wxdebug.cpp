@@ -76,7 +76,7 @@ bool g_fAutoRefreshLevels = false;
 
 LPCTSTR pBaseKey = TEXT("SOFTWARE\\Microsoft\\DirectShow\\Debug");
 LPCTSTR pGlobalKey = TEXT("GLOBAL");
-static CHAR *pUnknownName = "UNKNOWN";
+static CHAR *pUnknownName = const_cast<CHAR *>("UNKNOWN");
 
 LPCTSTR TimeoutName = TEXT("TIMEOUT");
 
