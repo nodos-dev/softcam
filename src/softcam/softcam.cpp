@@ -16,7 +16,7 @@ namespace {
 
 // Setup data
 
-const wchar_t FILTER_NAME[] = L"Ecran-Digital";
+const wchar_t FILTER_NAME[] = L"Nodos Virtual Camera";
 const GUID &FILTER_CLASSID = CLSID_DShowSoftcam;
 
 const AMOVIESETUP_MEDIATYPE s_pin_types[] =
