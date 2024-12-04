@@ -4,6 +4,20 @@
 #include <mutex> // lock_guard
 
 
+float GetFormatSizePerPixel(softcamTextureFormat format) {
+    switch (format)
+    {
+    case SOFTCAM_TEXTURE_FORMAT_RGB24:
+        return 3.0f;
+    case SOFTCAM_TEXTURE_FORMAT_YUY2:
+        return 2.0f;
+    case SOFTCAM_TEXTURE_FORMAT_NV12:
+        return 1.5f;
+    default:
+        return 0.0f;
+    }
+}
+
 namespace softcam {
 
 
@@ -22,6 +36,7 @@ struct FrameBuffer::Header
     uint8_t     m_watchdog_heartbeat;
     uint8_t     m_unused_field;
     uint64_t    m_frame_counter;
+    softcamTextureFormat m_texture_format;
 
     uint8_t*    imageData();
 };
@@ -35,9 +50,10 @@ uint8_t* FrameBuffer::Header::imageData()
 
 
 FrameBuffer FrameBuffer::create(
-                        int             width,
-                        int             height,
-                        float           framerate)
+    int             width,
+    int             height,
+    float           framerate,
+    softcamTextureFormat format)
 {
     FrameBuffer fb(NamedMutexName);
 
@@ -45,12 +61,16 @@ FrameBuffer FrameBuffer::create(
     {
         return fb;
     }
+	if (format == SOFTCAM_TEXTURE_FORMAT_UNKNOWN)
+	{
+		return fb;
+	}
     if (framerate < 0.0f)
     {
         return fb;
     }
 
-    auto shmem_size = calcMemorySize((uint16_t)width, (uint16_t)height);
+    auto shmem_size = calcMemorySize((uint16_t)width, (uint16_t)height, format);
     fb.m_shmem = SharedMemory::create(SharedMemoryName, shmem_size);
     if (fb.m_shmem)
     {
@@ -64,6 +84,7 @@ FrameBuffer FrameBuffer::create(
         frame->m_is_active = 1;
         frame->m_connected = 0;
         frame->m_frame_counter = 0;
+		frame->m_texture_format = format;
 
         auto mutex = fb.m_mutex;
         fb.m_watchdog = Watchdog::createHeartbeat(
@@ -94,12 +115,12 @@ FrameBuffer FrameBuffer::open()
         }
         auto frame = fb.header();
         if (!checkDimensions(frame->m_width, frame->m_height) ||
-            frame->m_framerate < 0.0f)
+            frame->m_framerate < 0.0f || frame->m_texture_format == SOFTCAM_TEXTURE_FORMAT_UNKNOWN)
         {
             fb.m_shmem = {};
             return fb;
         }
-        uint32_t image_size = (uint32_t)frame->m_width * (uint32_t)frame->m_height * 3;
+        uint32_t image_size = (uint32_t)frame->m_width * (uint32_t)frame->m_height * GetFormatSizePerPixel(frame->m_texture_format);
         if (size <= frame->m_image_offset ||
             size - frame->m_image_offset < image_size)
         {
@@ -161,6 +182,12 @@ uint64_t FrameBuffer::frameCounter() const
     return m_shmem ? header()->m_frame_counter : 0;
 }
 
+softcamTextureFormat FrameBuffer::format() const
+{
+    std::lock_guard<NamedMutex> lock(m_mutex);
+    return m_shmem ? header()->m_texture_format : SOFTCAM_TEXTURE_FORMAT_UNKNOWN;
+}
+
 bool FrameBuffer::active() const
 {
     std::lock_guard<NamedMutex> lock(m_mutex);
@@ -185,10 +212,11 @@ void FrameBuffer::write(const void* image_bits)
     if (!m_shmem) return;
     std::lock_guard<NamedMutex> lock(m_mutex);
     auto frame = header();
+    size_t copySize = GetFormatSizePerPixel(frame->m_texture_format) * frame->m_width * frame->m_height;
     std::memcpy(
-            frame->imageData(),
-            image_bits,
-            (std::size_t)3 * frame->m_width * frame->m_height);
+        frame->imageData(),
+        image_bits,
+        copySize);
     frame->m_frame_counter += 1;
 }
 
@@ -202,7 +230,7 @@ void FrameBuffer::transferToDIB(void* image_bits, uint64_t* out_frame_counter)
     std::lock_guard<NamedMutex> lock(m_mutex);
 
     auto frame = header();
-    {
+    if(frame->m_texture_format == SOFTCAM_TEXTURE_FORMAT_RGB24){
         int w = frame->m_width;
         int h = frame->m_height;
         int gap = ((w * 3 + 3) & ~3) - w * 3;
@@ -216,6 +244,7 @@ void FrameBuffer::transferToDIB(void* image_bits, uint64_t* out_frame_counter)
         }
         *out_frame_counter = frame->m_frame_counter;
     }
+    // TO-DO: Implement for other formats too
 }
 
 bool FrameBuffer::waitForNewFrame(uint64_t frame_counter, float time_out)
@@ -271,10 +300,11 @@ bool FrameBuffer::checkDimensions(
 
 uint32_t FrameBuffer::calcMemorySize(
                         uint16_t width,
-                        uint16_t height)
+                        uint16_t height,
+                        softcamTextureFormat format)
 {
     uint32_t header_size = sizeof(Header);
-    uint32_t image_size = (uint32_t)width * height * 3;
+    uint32_t image_size = (uint32_t)width * height * GetFormatSizePerPixel(format);
     uint32_t shmem_size = header_size + image_size;
     return shmem_size;
 }

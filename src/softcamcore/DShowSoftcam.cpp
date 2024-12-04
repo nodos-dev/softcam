@@ -95,13 +95,55 @@ AM_MEDIA_TYPE* allocateMediaType()
     return amt;
 }
 
-std::size_t calcDIBSize(int width, int height)
+std::size_t calcDIBSize(int width, int height, softcamTextureFormat format)
 {
-    std::size_t stride = (static_cast<unsigned>(width) * 3 + 3) & ~3u;
-    return stride * static_cast<unsigned>(height);
+    switch (format)
+    {
+    case SOFTCAM_TEXTURE_FORMAT_RGB24:
+    {
+        std::size_t stride = (static_cast<unsigned>(width) * 3 + 3) & ~3u;
+        return stride * static_cast<unsigned>(height);
+    }
+    case SOFTCAM_TEXTURE_FORMAT_YUY2:
+        return static_cast<std::size_t>(width) * height * 2;
+    case SOFTCAM_TEXTURE_FORMAT_NV12:
+    {
+        return width * height * 3.0f / 2.0f;
+    }
+    default:
+        return 0;
+    }
 }
 
-void fillMediaType(AM_MEDIA_TYPE* amt, int width, int height, float framerate)
+DWORD GetCompressionByFormat(softcamTextureFormat format) {
+    switch (format)
+    {
+    case SOFTCAM_TEXTURE_FORMAT_RGB24:
+        return BI_RGB;
+    case SOFTCAM_TEXTURE_FORMAT_YUY2:
+        return MAKEFOURCC('Y', 'U', 'Y', '2');
+    case SOFTCAM_TEXTURE_FORMAT_NV12:
+        return MAKEFOURCC('N', 'V', '1', '2');
+    default:
+        return 0;
+    }
+}
+
+GUID GetSubTypeByFormat(softcamTextureFormat format) {
+    switch (format)
+    {
+    case SOFTCAM_TEXTURE_FORMAT_RGB24:
+        return MEDIASUBTYPE_RGB24;
+    case SOFTCAM_TEXTURE_FORMAT_YUY2:
+        return MEDIASUBTYPE_YUY2;
+    case SOFTCAM_TEXTURE_FORMAT_NV12:
+        return MEDIASUBTYPE_NV12;
+    default:
+        return GUID_NULL;
+    }
+}
+
+void fillMediaType(AM_MEDIA_TYPE* amt, int width, int height, float framerate, softcamTextureFormat format)
 {
     BYTE *pbFormat = amt->pbFormat;
 
@@ -109,7 +151,8 @@ void fillMediaType(AM_MEDIA_TYPE* amt, int width, int height, float framerate)
     {
         framerate = 60.0f;
     }
-    const float bit_rate = (float)width * (float)height * 24 * framerate;
+    const float bit_count = 8 * GetFormatSizePerPixel(format);
+    const float bit_rate = (float)width * (float)height * bit_count * framerate;
     const float period = 10 * 1000 * 1000 / framerate;
 
     VIDEOINFOHEADER* pFormat = (VIDEOINFOHEADER*)pbFormat;
@@ -121,29 +164,29 @@ void fillMediaType(AM_MEDIA_TYPE* amt, int width, int height, float framerate)
     pFormat->bmiHeader.biWidth = width;
     pFormat->bmiHeader.biHeight = height;
     pFormat->bmiHeader.biPlanes = 1;
-    pFormat->bmiHeader.biBitCount = 24;
-    pFormat->bmiHeader.biCompression = BI_RGB;
-    pFormat->bmiHeader.biSizeImage = static_cast<uint32_t>(calcDIBSize(width, height));
+    pFormat->bmiHeader.biBitCount = bit_count;
+    pFormat->bmiHeader.biCompression = GetCompressionByFormat(format);
+    pFormat->bmiHeader.biSizeImage = static_cast<uint32_t>(calcDIBSize(width, height, format));
 
     amt->majortype = MEDIATYPE_Video;
-    amt->subtype = MEDIASUBTYPE_RGB24;
+    amt->subtype = GetSubTypeByFormat(format);
     amt->bFixedSizeSamples = TRUE;
     amt->bTemporalCompression = FALSE;
-    amt->lSampleSize = static_cast<uint32_t>(calcDIBSize(width, height));
+    amt->lSampleSize = static_cast<uint32_t>(calcDIBSize(width, height, format));
     amt->formattype = FORMAT_VideoInfo;
     amt->pUnk = nullptr;
     amt->cbFormat = sizeof(VIDEOINFOHEADER);
     amt->pbFormat = pbFormat;
 }
 
-AM_MEDIA_TYPE* makeMediaType(int width, int height, float framerate)
+AM_MEDIA_TYPE* makeMediaType(int width, int height, float framerate, softcamTextureFormat format)
 {
     AM_MEDIA_TYPE *amt = allocateMediaType();
     if (!amt)
     {
         return nullptr;
     }
-    fillMediaType(amt, width, height, framerate);
+    fillMediaType(amt, width, height, framerate, format);
     return amt;
 }
 
@@ -169,7 +212,8 @@ Softcam::Softcam(LPUNKNOWN lpunk, const GUID& clsid, HRESULT *phr) :
     m_valid(m_frame_buffer ? true : false),
     m_width(m_frame_buffer.width()),
     m_height(m_frame_buffer.height()),
-    m_framerate(m_frame_buffer.framerate())
+    m_framerate(m_frame_buffer.framerate()),
+    m_format(m_frame_buffer.format())
 {
     // This code is okay though it may look strange as the return value is ignored.
     // Calling the SoftcamStream constructor results in calling the CBaseOutputPin
@@ -207,8 +251,7 @@ Softcam::SetFormat(AM_MEDIA_TYPE *mt)
         LOG("-> E_FAIL\n");
         return E_FAIL;
     }
-    if (mt->majortype != MEDIATYPE_Video ||
-        mt->subtype != MEDIASUBTYPE_RGB24)
+    if (mt->majortype != MEDIATYPE_Video)
     {
         LOG("-> E_FAIL (invalid media type)\n");
         return E_FAIL;
@@ -220,12 +263,6 @@ Softcam::SetFormat(AM_MEDIA_TYPE *mt)
             pFormat->bmiHeader.biHeight != m_height)
         {
             LOG("-> E_FAIL (invalid dimension)\n");
-            return E_FAIL;
-        }
-        if (pFormat->bmiHeader.biBitCount != 24 ||
-            pFormat->bmiHeader.biCompression != BI_RGB)
-        {
-            LOG("-> E_FAIL (invalid color format)\n");
             return E_FAIL;
         }
     }
@@ -246,7 +283,7 @@ Softcam::GetFormat(AM_MEDIA_TYPE **out_pmt)
         LOG("-> E_FAIL\n");
         return E_FAIL;
     }
-    AM_MEDIA_TYPE* mt = makeMediaType(m_width, m_height, m_framerate);
+    AM_MEDIA_TYPE* mt = makeMediaType(m_width, m_height, m_framerate, m_format);
     if (!mt)
     {
         LOG("-> E_OUTOFMEMORY\n");
@@ -294,7 +331,7 @@ Softcam::GetStreamCaps(int index, AM_MEDIA_TYPE **out_pmt, BYTE *out_scc)
         LOG("-> S_FALSE (invalid index)\n");
         return S_FALSE;
     }
-    AM_MEDIA_TYPE *mt = makeMediaType(m_width, m_height, m_framerate);
+    AM_MEDIA_TYPE *mt = makeMediaType(m_width, m_height, m_framerate, m_format);
     if (!mt)
     {
         LOG("-> E_OUTOFMEMORY\n");
@@ -371,7 +408,8 @@ SoftcamStream::SoftcamStream(HRESULT *phr,
     CSourceStream(NAME("DirectShow Softcam Stream"), phr, pParent, pPinName),
     m_valid(pParent->valid()),
     m_width(pParent->width()),
-    m_height(pParent->height())
+    m_height(pParent->height()),
+    m_format(pParent->format())
 {
 }
 
@@ -425,7 +463,7 @@ HRESULT SoftcamStream::FillBuffer(IMediaSample *pms)
                 getParent()->releaseFrameBuffer();
 
                 // Save the last image for a placeholder.
-                const std::size_t size = calcDIBSize(m_width, m_height);
+                const std::size_t size = calcDIBSize(m_width, m_height, m_format);
                 if (!m_screenshot)
                 {
                     m_screenshot.reset(new uint8_t[size]);
@@ -446,7 +484,7 @@ HRESULT SoftcamStream::FillBuffer(IMediaSample *pms)
             m_frame_counter = 0;
             Timer::sleep(0.100f);
 
-            const std::size_t size = calcDIBSize(m_width, m_height);
+            const std::size_t size = calcDIBSize(m_width, m_height, m_format);
             std::memcpy(pData, m_screenshot.get(), size);
         }
 
@@ -491,7 +529,7 @@ HRESULT SoftcamStream::GetMediaType(CMediaType *pmt)
         return E_OUTOFMEMORY;
     }
 
-    fillMediaType(pmt, getParent()->width(), getParent()->height(), getParent()->framerate());
+    fillMediaType(pmt, getParent()->width(), getParent()->height(), getParent()->framerate(), getParent()->format());
 
     LOG("-> NOERROR\n");
     return NOERROR;

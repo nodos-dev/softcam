@@ -6,7 +6,7 @@
 //
 
 #define SOFTCAM_API __cdecl
-
+typedef enum softcamTextureFormat softcamTextureFormat;
 extern "C"
 {
     using scCamera = void*;
@@ -40,7 +40,7 @@ extern "C"
         function, the virtual camera intance and associated resources are
         deleted automatically.
     */
-    scCamera    SOFTCAM_API scCreateCamera(int width, int height, float framerate = 60.0f);
+    scCamera    SOFTCAM_API scCreateCamera(int width, int height, float framerate = 60.0f, softcamTextureFormat format = (softcamTextureFormat)0);
 
     /*
         This function deletes the specified virtual camera instance.

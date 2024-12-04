@@ -4,7 +4,9 @@
 #include <cstddef>
 #include "Misc.h"
 #include "Watchdog.h"
+#include "SoftcamCommon.h"
 
+float GetFormatSizePerPixel(softcamTextureFormat format);
 
 namespace softcam {
 
@@ -21,7 +23,8 @@ class FrameBuffer
     static FrameBuffer create(
                         int             width,
                         int             height,
-                        float           framerate = 0.0f);
+                        float           framerate = 0.0f,
+                        softcamTextureFormat format = SOFTCAM_TEXTURE_FORMAT_UNKNOWN);
     static FrameBuffer open();
 
     FrameBuffer& operator =(const FrameBuffer&);
@@ -32,6 +35,7 @@ class FrameBuffer
     int             height() const;
     float           framerate() const;
     uint64_t        frameCounter() const;
+    softcamTextureFormat             format() const;
     bool            active() const;
     bool            connected() const;
 
@@ -63,7 +67,8 @@ class FrameBuffer
                         int height);
     static uint32_t calcMemorySize(
                         uint16_t width,
-                        uint16_t height);
+                        uint16_t height,
+                        softcamTextureFormat format);
 };
 
 

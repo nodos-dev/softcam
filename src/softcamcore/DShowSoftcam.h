@@ -31,6 +31,7 @@ public:
     int             width() const { return m_width; }
     int             height() const { return m_height; }
     float           framerate() const { return m_framerate; }
+    softcamTextureFormat           format() const { return m_format; }
     void            releaseFrameBuffer();
 
 private:
@@ -40,6 +41,7 @@ private:
     const int   m_width;
     const int   m_height;
     const float m_framerate;
+    const softcamTextureFormat m_format;
 
     Softcam(LPUNKNOWN lpunk, const GUID& clsid, HRESULT *phr);
 };
@@ -88,6 +90,7 @@ private:
     const bool  m_valid;
     const int   m_width;
     const int   m_height;
+    const softcamTextureFormat m_format;
     uint64_t    m_frame_counter = 0;
     std::unique_ptr<uint8_t[]>  m_screenshot;
 

@@ -1,4 +1,5 @@
 add_library(softcamcore STATIC
+	SoftcamCommon.h
     DShowSoftcam.cpp
     DShowSoftcam.h
     FrameBuffer.cpp

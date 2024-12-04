@@ -1,11 +1,11 @@
-#include "softcam.h"
+
 
 #include <olectl.h>
 #include <initguid.h>
 
 #include <softcamcore/DShowSoftcam.h>
 #include <softcamcore/SenderAPI.h>
-
+#include "softcam.h"
 
 // {AEF3B972-5FA5-4647-9571-358EB472BC9E}
 DEFINE_GUID(CLSID_DShowSoftcam,
@@ -23,7 +23,15 @@ const AMOVIESETUP_MEDIATYPE s_pin_types[] =
 {
     {
         &MEDIATYPE_Video,       // Major type
-        &MEDIASUBTYPE_NULL      // Minor type
+        &MEDIASUBTYPE_NV12      // Minor type
+    },
+    {
+        &MEDIATYPE_Video,       // Major type
+        &MEDIASUBTYPE_YUY2      // Minor type
+    },
+    {
+        &MEDIATYPE_Video,       // Major type
+        &MEDIASUBTYPE_RGB24      // Minor type
     }
 };
 
@@ -37,7 +45,7 @@ const AMOVIESETUP_PIN s_pins[] =
         FALSE,                  // Can we have many
         &CLSID_NULL,            // Connects to filter
         NULL,                   // Connects to pin
-        1,                      // Number of types
+        sizeof(s_pin_types) / sizeof(s_pin_types[0]),                      // Number of types
         s_pin_types             // Pin details
     }
 };
@@ -157,9 +165,9 @@ BOOL APIENTRY DllMain(HANDLE hModule, DWORD  dwReason, LPVOID lpReserved)
 // Softcam Sender API
 //
 
-extern "C" scCamera scCreateCamera(int width, int height, float framerate)
+extern "C" scCamera scCreateCamera(int width, int height, float framerate, softcamTextureFormat format)
 {
-    return softcam::sender::CreateCamera(width, height, framerate);
+    return softcam::sender::CreateCamera(width, height, framerate, format);
 }
 
 extern "C" void     scDeleteCamera(scCamera camera)
