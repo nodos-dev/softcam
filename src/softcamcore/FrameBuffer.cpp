@@ -7,7 +7,7 @@
 float GetFormatSizePerPixel(softcamTextureFormat format) {
     switch (format)
     {
-    case SOFTCAM_TEXTURE_FORMAT_RGB24:
+    case SOFTCAM_TEXTURE_FORMAT_BGR24:
         return 3.0f;
     case SOFTCAM_TEXTURE_FORMAT_YUY2:
         return 2.0f;
@@ -230,7 +230,7 @@ void FrameBuffer::transferToDIB(void* image_bits, uint64_t* out_frame_counter)
     std::lock_guard<NamedMutex> lock(m_mutex);
 
     auto frame = header();
-    if(frame->m_texture_format == SOFTCAM_TEXTURE_FORMAT_RGB24){
+    if(frame->m_texture_format == SOFTCAM_TEXTURE_FORMAT_BGR24){
         int w = frame->m_width;
         int h = frame->m_height;
         int gap = ((w * 3 + 3) & ~3) - w * 3;

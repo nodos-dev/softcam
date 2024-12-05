@@ -99,7 +99,7 @@ std::size_t calcDIBSize(int width, int height, softcamTextureFormat format)
 {
     switch (format)
     {
-    case SOFTCAM_TEXTURE_FORMAT_RGB24:
+    case SOFTCAM_TEXTURE_FORMAT_BGR24:
     {
         std::size_t stride = (static_cast<unsigned>(width) * 3 + 3) & ~3u;
         return stride * static_cast<unsigned>(height);
@@ -118,7 +118,7 @@ std::size_t calcDIBSize(int width, int height, softcamTextureFormat format)
 DWORD GetCompressionByFormat(softcamTextureFormat format) {
     switch (format)
     {
-    case SOFTCAM_TEXTURE_FORMAT_RGB24:
+    case SOFTCAM_TEXTURE_FORMAT_BGR24:
         return BI_RGB;
     case SOFTCAM_TEXTURE_FORMAT_YUY2:
         return MAKEFOURCC('Y', 'U', 'Y', '2');
@@ -132,7 +132,7 @@ DWORD GetCompressionByFormat(softcamTextureFormat format) {
 GUID GetSubTypeByFormat(softcamTextureFormat format) {
     switch (format)
     {
-    case SOFTCAM_TEXTURE_FORMAT_RGB24:
+    case SOFTCAM_TEXTURE_FORMAT_BGR24:
         return MEDIASUBTYPE_RGB24;
     case SOFTCAM_TEXTURE_FORMAT_YUY2:
         return MEDIASUBTYPE_YUY2;
