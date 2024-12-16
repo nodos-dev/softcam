@@ -184,3 +184,7 @@ extern "C" bool     scWaitForConnection(scCamera camera, float timeout)
 {
     return softcam::sender::WaitForConnection(camera, timeout);
 }
+
+extern "C" GUID     scGetCameraDriverClassID() {
+    return CLSID_DShowSoftcam;
+}

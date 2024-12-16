@@ -74,4 +74,6 @@ extern "C"
         this function returns `false`.
     */
     bool        SOFTCAM_API scWaitForConnection(scCamera camera, float timeout = 0.0f);
+
+    GUID        SOFTCAM_API scGetCameraDriverClassID();
 }
